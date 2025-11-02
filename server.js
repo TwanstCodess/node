@@ -1,17 +1,10 @@
 // server.js
 const express = require('express');
 const app = express();
-const mainRoutes = require('./routes/mainRoutes');
+const userRoutes = require('./routes/userRoutes');
+
+app.use(express.json());
+app.use('/api/users', userRoutes);
 
 const PORT = 3000;
-
-// middleware
-app.use(express.json());
-
-// routes
-app.use('/', mainRoutes);
-
-// server start
-app.listen(PORT, () => {
-  console.log(`🚀 سێرڤەر کاردەکات لە پۆرت ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 سێرڤەر کاردەکات لە پۆرت ${PORT}`));
