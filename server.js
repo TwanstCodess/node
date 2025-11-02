@@ -1,11 +1,17 @@
+// server.js
 const express = require('express');
 const app = express();
-const port = 3000;
+const mainRoutes = require('./routes/mainRoutes');
 
-app.get('/', (req, res) => {
-  res.send('Welcome to Node.js ');
-});
+const PORT = 3000;
 
-app.listen(port, () => {
-  console.log(` Server Successfully ${port}`);
+// middleware
+app.use(express.json());
+
+// routes
+app.use('/', mainRoutes);
+
+// server start
+app.listen(PORT, () => {
+  console.log(`🚀 سێرڤەر کاردەکات لە پۆرت ${PORT}`);
 });
