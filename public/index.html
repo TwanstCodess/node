@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRUD بە Node.js + SQLite (Tailwind)</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* کەمێک ستایل بۆ scrollbar یا ئەو شتانی کە Tailwind بدرستی نادی؟ */
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-8">
+
+  <div class="max-w-4xl mx-auto">
+    <header class="mb-6">
+      <h1 class="text-3xl font-semibold text-gray-800 mb-1">👤 بەکارهێنەران</h1>
+      <p class="text-sm text-gray-500">CRUD بە Node.js + SQLite — بە شاشەی خاوەنەقەورە</p>
+    </header>
+
+    <!-- form -->
+    <section class="bg-white p-6 rounded-lg shadow-sm">
+      <form id="userForm" class="flex flex-col sm:flex-row gap-3 items-center">
+        <input id="name" type="text" placeholder="ناو" required
+               class="flex-1 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        <input id="email" type="email" placeholder="ئیمەیل" required
+               class="flex-1 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        <button type="submit"
+                class="mt-2 sm:mt-0 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition">
+          ➕ زیادکردن
+        </button>
+      </form>
+    </section>
+
+    <!-- table -->
+    <section class="mt-6">
+      <div class="overflow-x-auto bg-white rounded-lg shadow-sm">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ناو</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ئیمەیل</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">کردار</th>
+            </tr>
+          </thead>
+          <tbody id="userTable" class="bg-white divide-y divide-gray-100">
+            <!-- rows will be injected here -->
+          </tbody>
+        </table>
+      </div>
+      <p id="emptyMsg" class="text-center text-gray-500 mt-4 hidden">بێت هیچ بەکارهێنەرێک نییە — تکایە زیاد بکە.</p>
+    </section>
+  </div>
+
+  <script>
+    const api = '/api/users';
+
+    // هێنانەوەی هەموو بەکارهێنەران
+    async function loadUsers() {
+      try {
+        const res = await fetch(api);
+        const users = await res.json();
+        const tbody = document.getElementById('userTable');
+        const emptyMsg = document.getElementById('emptyMsg');
+        tbody.innerHTML = '';
+
+        if (!Array.isArray(users) || users.length === 0) {
+          emptyMsg.classList.remove('hidden');
+          return;
+        } else {
+          emptyMsg.classList.add('hidden');
+        }
+
+        users.forEach(u => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-gray-50';
+          tr.innerHTML = `
+            <td class="px-4 py-3 text-right whitespace-nowrap text-sm text-gray-700">${u.id}</td>
+            <td class="px-4 py-3 text-right whitespace-nowrap text-sm text-gray-700">${escapeHtml(u.name)}</td>
+            <td class="px-4 py-3 text-right whitespace-nowrap text-sm text-gray-700">${escapeHtml(u.email)}</td>
+            <td class="px-4 py-3 text-center whitespace-nowrap text-sm">
+              <button onclick="editUser(${u.id}, ${JSON.stringify(u.name)}, ${JSON.stringify(u.email)})"
+                      class="mx-1 px-3 py-1 bg-yellow-400 text-white rounded-md hover:brightness-95">✏️ نوێکردن</button>
+              <button onclick="deleteUser(${u.id})"
+                      class="mx-1 px-3 py-1 bg-red-500 text-white rounded-md hover:brightness-95">🗑️ سڕینەوە</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error(err);
+        alert('هەڵە تێپەڕی لە هێنانەوەی بەکارهێنەران.');
+      }
+    }
+
+    // escapeHtml بۆ پاراستن لە XSS
+    function escapeHtml(text) {
+      if (typeof text !== 'string') return text;
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // زیادکردن یا نوێکردن (toggle mode)
+    let editingId = null;
+    const form = document.getElementById('userForm');
+    const nameInput = document.getElementById('name');
+    const emailInput = document.getElementById('email');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const name = nameInput.value.trim();
+      const email = emailInput.value.trim();
+
+      if (!name || !email) return;
+
+      if (editingId) {
+        // PUT (نوێکردن)
+        await fetch(`${api}/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email })
+        });
+        editingId = null;
+        form.querySelector('button[type="submit"]').textContent = '➕ زیادکردن';
+      } else {
+        // POST (زیادکردن)
+        await fetch(api, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email })
+        });
+      }
+
+      form.reset();
+      loadUsers();
+    });
+
+    // دابینکردنی فۆرم بۆ نوێکردن
+    function editUser(id, name, email) {
+      editingId = id;
+      nameInput.value = name;
+      emailInput.value = email;
+      form.querySelector('button[type="submit"]').textContent = '💾 نوێکردن';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // سڕینەوەی بەکارهێنەر
+    async function deleteUser(id) {
+      if (!confirm('دڵنیایت دەتەوێت ئەم بەکارهێنەرە بسڕیتەوە؟')) return;
+      await fetch(`${api}/${id}`, { method: 'DELETE' });
+      // ئەگەر ئەنجام هەڵە هەبێ، بەکارهێنەرەکە هەیە هەڵەییەک پێدەدات
+      loadUsers();
+    }
+
+    // start
+    loadUsers();
+  </script>
+</body>
+</html>
